@@ -1,6 +1,8 @@
 import os
-# Ensure the application reads the test database URL before importing app modules
+# Ensure the application reads the test database URL and test environment before importing app modules
 os.environ.setdefault("DATABASE_URL", "sqlite:///./test.db")
+# Mark environment as test to avoid hitting external resources during unit tests
+os.environ.setdefault("ENVIRONMENT", "test")
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine

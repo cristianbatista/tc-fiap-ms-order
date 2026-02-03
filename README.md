@@ -69,6 +69,32 @@ CANCELLED
 - PostgreSQL
 - Docker & Docker Compose (optional)
 
+Note about Python version
+------------------------
+
+This project targets Python 3.11. If you are using Python 3.13 or newer, you may encounter incompatibilities with some dependencies (for example SQLAlchemy). To avoid installation/runtime issues, use Python 3.11 when creating your virtual environment. Recommended methods:
+
+- Use pyenv to install and select Python 3.11: `pyenv install 3.11.4 && pyenv local 3.11.4`
+- Or create a virtualenv with the system Python 3.11 executable: `/usr/bin/python3.11 -m venv .venv && source .venv/bin/activate`
+
+This repository also includes a `.python-version` file to help tools like `pyenv` pick the correct interpreter.
+
+Automated setup script
+----------------------
+
+There's a helper script at `scripts/setup-python3.11-venv.sh` that will attempt to create a `.venv` using `python3.11` if it is installed on your machine. Usage:
+
+```bash
+# make the script executable once
+chmod +x scripts/setup-python3.11-venv.sh
+# run the script (it creates .venv and upgrades pip)
+./scripts/setup-python3.11-venv.sh
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+If the script fails because `python3.11` is not available, install Python 3.11 (pyenv is recommended) and re-run the script.
+
 ### Local Development
 
 1. Install dependencies:
