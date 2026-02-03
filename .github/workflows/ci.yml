@@ -1,0 +1,154 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  install:
+    name: Install dependencies and build wheels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install build tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install wheel
+
+      - name: Build wheels
+        run: |
+          mkdir -p wheelhouse
+          if [ -f requirements.txt ]; then
+            pip wheel -r requirements.txt -w wheelhouse || true
+          fi
+
+      - name: Upload wheels artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheelhouse
+          path: wheelhouse
+
+  test:
+    name: Run tests and coverage
+    needs: install
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Download wheels artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: wheelhouse
+          path: ./wheelhouse
+
+      - name: Install dependencies from wheels
+        run: |
+          python -m pip install --upgrade pip
+          if [ -d wheelhouse ]; then
+            pip install --no-index --find-links=wheelhouse -r requirements.txt
+          else
+            pip install -r requirements.txt
+          fi
+
+      - name: Run tests with coverage
+        run: |
+          pip install pytest pytest-cov
+          mkdir -p reports
+          # Run pytest: produce junit XML, coverage XML and HTML report + terminal summary
+          pytest --maxfail=1 --disable-warnings -q \
+            --junitxml=reports/junit.xml \
+            --cov=app \
+            --cov-report=xml:coverage.xml \
+            --cov-report=html:coverage_html \
+            --cov-report=term
+
+      - name: Upload test and coverage artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifacts
+          path: |
+            coverage.xml
+            coverage_html
+            reports/junit.xml
+
+  container:
+    name: Build Docker image
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker (skip - not configured)
+        run: echo "Skipping docker login in CI (use secrets.DOCKER_USERNAME / DOCKER_PASSWORD to enable)"
+
+      - name: Build Docker image
+        run: |
+          IMAGE_NAME=ms-order:${{ github.sha }}
+          docker build -t $IMAGE_NAME .
+          mkdir -p image_artifact
+          docker save $IMAGE_NAME -o image_artifact/ms-order-image.tar
+
+      - name: Upload image tar artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-tar
+          path: image_artifact/ms-order-image.tar
+
+  deploy:
+    name: Deploy to Kubernetes (simulated)
+    needs: container
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download image artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: image-tar
+          path: ./image_artifact
+
+      - name: Prepare kubectl (commented)
+        run: |
+          # The following commands would perform a real deployment to Kubernetes.
+          # They are intentionally commented out for safety in this workflow.
+          # Uncomment and configure KUBECONFIG and any required secrets to enable real deploy.
+          #
+          # echo "Setting up kubectl"
+          # curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          # chmod +x kubectl
+          # sudo mv kubectl /usr/local/bin/
+          #
+          # echo "Loading image into cluster (example for kind/minikube)"
+          # docker load -i ./image_artifact/ms-order-image.tar
+          # kubectl apply -f k8s/deployment.yaml
+          # kubectl rollout status deployment/ms-order -n default
+          
+          echo "Simulated deploy: commands are commented out. Marking deploy step as successful."

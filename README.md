@@ -186,3 +186,56 @@ curl -X POST "http://localhost:8001/api/v1/orders/1/confirm?payment_id=PAY123"
 ## License
 
 MIT
+
+## CI / GitHub Actions
+
+The repository includes a GitHub Actions workflow at `.github/workflows/ci.yml` which runs on pushes and pull requests to `main`.
+
+- Job `install`: builds wheels from `requirements.txt` and uploads them as an artifact named `wheelhouse`.
+- Job `test`: downloads the wheels, installs dependencies, runs `pytest` and uploads test artifacts (JUnit XML, `coverage.xml` and the HTML coverage folder).
+
+Where to find artifacts on GitHub:
+
+1. Open the repository on GitHub and go to the `Actions` tab.
+2. Select the workflow run you want to inspect.
+3. Expand the `install` or `test` job to see logs.
+4. In the workflow run page, open the `Artifacts` dropdown (top-right) to download artifacts such as `wheelhouse` or `test-artifacts`.
+
+Artifact contents produced by the workflow:
+
+- `wheelhouse` — pre-built wheels for offline installation.
+- `test-artifacts` — contains `reports/junit.xml`, `coverage.xml` and the `coverage_html/` folder (HTML coverage report).
+
+Viewing coverage locally from an artifact:
+
+1. Download and unzip the `test-artifacts` artifact from the workflow run.
+2. Open `coverage_html/index.html` in a browser to see the full HTML coverage report.
+
+Run the same commands locally (simulate CI):
+
+```bash
+# build wheels
+mkdir -p wheelhouse
+python -m pip install --upgrade pip
+pip install wheel
+pip wheel -r requirements.txt -w wheelhouse
+
+# install from wheels
+python -m pip install --upgrade pip
+pip install --no-index --find-links=wheelhouse -r requirements.txt
+
+# run tests and generate coverage + junit
+python -m pip install pytest pytest-cov
+mkdir -p reports
+pytest --maxfail=1 --disable-warnings -q \
+  --junitxml=reports/junit.xml \
+  --cov=app \
+  --cov-report=xml:coverage.xml \
+  --cov-report=html:coverage_html \
+  --cov-report=term
+
+# open the HTML report
+open coverage_html/index.html
+```
+
+If you want additional reporting (e.g., upload to Codecov) tell me and I can add that to the workflow.
